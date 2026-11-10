@@ -1,0 +1,4 @@
+Línea 273: la clase MSComctlLib.StatusBar del control StatusBar1 no era una clase de control cargada.
+Línea 518: la clase MSComctlLib.ProgressBar del control pgbPortata no era una clase de control cargada.
+Línea 2425: la clase MSComctlLib.TabStrip del control TabStrip1 no era una clase de control cargada.
+Línea 2523: la clase MSComctlLib.ImageList del control ImageList1 no era una clase de control cargada.

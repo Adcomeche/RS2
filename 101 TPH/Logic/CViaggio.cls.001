@@ -1,0 +1,1388 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+  Persistable = 0  'NotPersistable
+  DataBindingBehavior = 0  'vbNone
+  DataSourceBehavior  = 0  'vbNone
+  MTSTransactionMode  = 0  'NotAnMTSObject
+END
+Attribute VB_Name = "CViaggio"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = True
+Attribute VB_Ext_KEY = "SavedWithClassBuilder" ,"Yes"
+Attribute VB_Ext_KEY = "Top_Level" ,"Yes"
+Option Explicit
+
+Public SQL_GETLIST As String
+Public SQL_FIND As String
+Public SQL_UPDATE As String
+Public SQL_INSERT As String
+Public SQL_DELETE As String
+Public SQL_GET_TS As String
+Public SQL_GET_SEARCH_LIST As String
+Public SQL_GET_SEARCH_LIST_GROUPBY As String
+Public SQL_GET_TOTALE_QTA As String
+Public SQL_GET_TOTALE_QTA_PRODOTTO As String
+Public SQL_GET_TOTALE_QTA_PRODOTTO_GROUPBY As String
+Public SQL_GET_QTA_SCARICHI As String
+Public SQL_SET_STATO As String
+Public SQL_SET_DATE_CONSEGNE_EFF As String
+Public SQL_SET_DATE_CONSEGNE As String
+Public SQL_COPY_CONSEGNE As String
+Public SQL_COPY_SCARICHI As String
+Public SQL_FIELDS_CONSEGNE As String
+Public SQL_FIELDS_SCARICHI As String
+Public SQL_COUNT_SIF As String
+Public SQL_SELECT_TRIP_PRODUCTS As String
+Public SQL_INSERT_TRIP_PRODUCTS As String
+Public SQL_CLEAR_TRIP_PRODUCTS As String
+Public SQL_GETLIST_COMPUTE_CU_REPARTO As String
+Private SQL_COUNT_DESTINATARI As String
+Private SQL_COUNT_CONSEGNE As String
+Private Const SQL_CHECK_SEQUENZA_INSERT = "select count(*) from viagvvt0 " & _
+                                          " where vvtdtinv = ? and convert(int, vvtseqvi) = ? and vvtidaut = ? and vvtidade = ? AND VVTANNUL = 0 "
+Private Const SQL_CHECK_SEQUENZA = "select count(*) from viagvvt0 " & _
+                                          " where vvtdtinv = ? and convert(int, vvtseqvi) = ? and vvtidaut = ? and vvtidade = ? AND vvtidvvt <> ? AND VVTANNUL = 0 "
+Private Const SQL_COUNT_CONSEGNE_DA_COMPLETARE = "SELECT COUNT(*) " & _
+                                                 "  FROM VIAGVVC0 " & _
+                                                 " WHERE VVCIDVVT = ? AND VVCANNUL = 0 AND ((VVCFLST5 IS NULL) OR (VVCFLST5 = 'N'))"
+
+
+' [28-04-05 (PM)] Nuovi statement per interfacciamento KNOSOS
+Private SQL_KNOSOS_VIAGGIO_INSERT As String
+Private SQL_KNOSOS_CARICO_INSERT As String
+Private SQL_KNOSOS_SCARICO_INSERT As String
+Private SQL_GET_LIST_KNOSOS_CONSEGNE_RESOIL As String
+    
+Private Const KNOSOS_OPEVIAGGIO_TIPO_CARICO As Integer = 0
+Private Const KNOSOS_OPEVIAGGIO_TIPO_SCARICO As Integer = 1
+Private Const KNOSOS_OPEVIAGGIO_IDSCARICO_CARICO As Integer = 0
+Private Const KNOSOS_OPEVIAGGIO_CODPROD_CARICO As String = "NULO"
+
+
+' TODO: da mettere nella tabella degli enumerativi
+Private Enum KNOSOS_VIAGGIO_STATO
+    KNOSOS_VIAGGIO_STATO_PENDENTE = 0
+    KNOSOS_VIAGGIO_STATO_INVIATO = 1
+    KNOSOS_VIAGGIO_STATO_RICEVUTO = 2
+    KNOSOS_VIAGGIO_STATO_INCORSO = 3
+    KNOSOS_VIAGGIO_STATO_TERMINATO = 9
+    KNOSOS_VIAGGIO_STATO_ANNUL_PENDENTE = 10
+    KNOSOS_VIAGGIO_STATO_ANNUL_INVIATO = 11
+    KNOSOS_VIAGGIO_STATO_ANNUL_ACCETTATO = 12
+End Enum
+
+' TODO: da mettere nella tabella degli enumerativi
+Private Enum KNOSOS_OPEVIAGGIO_STATO
+    KNOSOS_OPEVIAGGIO_STATO_RICHIESTA_CREAZIONE = 0
+    KNOSOS_OPEVIAGGIO_STATO_CREATA = 1
+    KNOSOS_OPEVIAGGIO_STATO_RICHIESTA_MODIFICA = 2
+    KNOSOS_OPEVIAGGIO_STATO_MODIFICATA = 3
+    KNOSOS_OPEVIAGGIO_STATO_RICHIESTA_ANNULLAMENTO = 4
+    KNOSOS_OPEVIAGGIO_STATO_ANNULLATA = 5
+End Enum
+
+Public WithEvents DS As CDataStruct
+Attribute DS.VB_VarHelpID = -1
+Private mcolListFields As Collection
+Private mvarFieldsIndexes As Variant
+Private mvarTotaliQta As Variant
+Event ClientRefresh()
+Event ClientClear()
+Event Command(Cmd As FormCommand)
+
+'Private Const SQL_GET_EXVIAGDETAIL = " SELECT VVTIDVVT, VVTIDDEF, VVTIDASC, AAUNOMAB, " & _
+'                                     "        VVTIDAM1, VVTIDAM2, vvtkmdef, SDECODSO, " & _
+'                                     "        SEECODSO, SUTCODSO, VVTDTINV, ACNNUMCO, " & _
+'                                     "        VVTIDADE, ADELOCAL, ACNNUMSE, ANAGAAM0.AAMDESCR, " & _
+'                                     "        ANAGAAM01.AAMDESCR AS DescRimorchio " & _
+'                                     "   FROM VIAGVVT0 INNER JOIN ANAGAAM0 ON VVTIDAM1 = ANAGAAM0.AAMIDAAM LEFT OUTER JOIN " & _
+'                                     "        ANAGAAM0 ANAGAAM01 ON VVTIDAM2 = ANAGAAM01.AAMIDAAM LEFT OUTER JOIN ANAGADE0 ON " & _
+'                                     " VIAGVVT0.VVTIDADE = ANAGADE0.ADEIDADE LEFT OUTER JOIN MULTSDE0 ON " & _
+'                                     " VIAGVVT0.VVTIDADE = MULTSDE0.SDEIDADE LEFT OUTER JOIN ANAGAAU0 ON " & _
+'                                     " VIAGVVT0.VVTIDAU1 = ANAGAAU0.AAUIDAAU LEFT OUTER JOIN MULTSUT0 ON " & _
+'                                     " VIAGVVT0.VVTIDAUT = MULTSUT0.SUTIDAUT LEFT OUTER JOIN MULTSEE0 ON " & _
+'                                     " VIAGVVT0.VVTIDAEE = MULTSEE0.SEEIDAEE LEFT OUTER JOIN " & _
+'                                     " ANAGACN0 ON " & _
+'                                     " VIAGVVT0.VVTIDCN1 = ANAGACN0.ACNIDACN " & _
+'                                     " WHERE (VVTIDVVT = ?) AND (MULTSDE0.SDEIDASC = ?) AND (MULTSEE0.SEEIDASC = ?) AND (MULTSUT0.SUTIDASC = ?)"
+'
+Private Const SQL_GET_EXVIAGDETAIL = _
+"  SELECT VVTIDVVT, VVTIDDEF, VVTIDASC, VVTIDVE1, " & _
+"         VVTIDAM1, VVTIDAM2, VVTKMDEF, VVTIDADE, " & _
+"         VVTIDAEE, VVTIDAUT, VVTDTINV, ACNNUMCO, " & _
+"         VVTIDADE, ADELOCAL, ACNNUMSE, ANAGAAM0.AAMDESCR, " & _
+"         ANAGAAM0_1.AAMDESCR AS DescRimorchio, VVCIDADZ, OCTRIFE1, OCTNOTA3, " & _
+"         OCTIDAZO, VVPRIFE1, VVPIDAPR, VVPQCOLT, " & _
+"         VVCIDACL, ADZRAGU5, VVCDELOC, VVCIDVVC, " & _
+"         AAUNOMAB, VVCANNUL " & _
+"    FROM ANAGADZ0 INNER JOIN ((ANAGAAM0 INNER JOIN ((((VIAGVVT0 LEFT JOIN ANAGAAM0 AS ANAGAAM0_1 ON VIAGVVT0.VVTIDAM2 = ANAGAAM0_1.AAMIDAAM) INNER JOIN ANAGAAU0 ON VIAGVVT0.VVTIDAU1 = ANAGAAU0.AAUIDAAU) LEFT JOIN ANAGADE0 ON VIAGVVT0.VVTIDADE = ANAGADE0.ADEIDADE) LEFT JOIN ANAGACN0 ON VIAGVVT0.VVTIDCN1 = ANAGACN0.ACNIDACN) ON ANAGAAM0.AAMIDAAM = VIAGVVT0.VVTIDAM1) INNER JOIN ((ORDIOCT0 INNER JOIN VIAGVVC0 ON ORDIOCT0.OCTIDOCT = VIAGVVC0.VVCIDOCT) INNER JOIN VIAGVVP0 ON (VIAGVVC0.VVCIDVVC = VIAGVVP0.VVPIDVVC) AND (VIAGVVC0.VVCIDVVT = VIAGVVP0.VVPIDVVT)) ON VIAGVVT0.VVTIDVVT = VIAGVVC0.VVCIDVVT) ON ANAGADZ0.ADZIDADZ = VIAGVVC0.VVCIDADZ " & _
+"   WHERE (VVTIDVVT = ?) " & _
+"ORDER BY VVCNRSEQ, VVPIDAPR "
+
+Public Function CheckSequenza(Data As Variant, NumSequenza As Variant, Unit‡DiTrasporto As Variant, Deposito As Variant, Optional IDViaggio As Variant) As Boolean
+    On Error GoTo ErrHandler
+    Dim varResult As Variant
+    Dim lngHowMany As Long
+    
+    If Not IsNumeric(NumSequenza) Then
+        CheckSequenza = True
+        Exit Function
+    End If
+    If NumSequenza <= 0 Then
+        CheckSequenza = True
+        Exit Function
+    End If
+    If Len(IDViaggio) > 0 Then
+        If Not DS.DA.QueryCommand(SQL_CHECK_SEQUENZA, varResult, lngHowMany, Data, NumSequenza, Unit‡DiTrasporto, Deposito, IDViaggio) Then
+            GoTo ErrHandler
+        End If
+    Else
+        If Not DS.DA.QueryCommand(SQL_CHECK_SEQUENZA_INSERT, varResult, lngHowMany, Data, NumSequenza, Unit‡DiTrasporto, Deposito) Then
+            GoTo ErrHandler
+        End If
+    End If
+    CheckSequenza = (varResult(0, 0) = 0)
+    Exit Function
+ErrHandler:
+    CheckSequenza = False
+End Function
+
+ 
+Public Function ComputeCU(IDViaggio As String, PortataVeicolo As Variant, _
+                          ByRef CUCarga As Variant, ByRef CUReparto As Variant, CUTotale As Variant) As Boolean
+    On Error GoTo ErrHandler
+    
+    Dim varCUReparto As Variant
+    Dim varBuffer As Variant
+    Dim varQuantit‡PerKM As Variant
+    Dim varQuantit‡PerKMTot As Variant
+    Dim strIDConsegna As Variant
+    Dim strIDConsegnaPrec As Variant
+    Dim lngHowMany As Long
+    Dim i As Long
+    Dim varQtaKgConsegna As Variant
+    Dim varQtaKGViaggio As Variant
+    
+    If Not DS.DA.QueryCommand(SQL_GETLIST_COMPUTE_CU_REPARTO, varBuffer, lngHowMany, IDViaggio) Then
+        GoTo ErrHandler
+    End If
+    For i = 0 To UBound(varBuffer, 2)
+        If strIDConsegna <> strIDConsegnaPrec Then
+            ' Termine elaborazione consegna precedente
+            If i > 0 Then
+                varQuantit‡PerKM = varQuantit‡PerKM + varQtaKgConsegna * varBuffer(1, i)
+            End If
+            ' Inizio elaborazione consegna successiva
+            strIDConsegnaPrec = strIDConsegna
+            varQtaKgConsegna = 0
+        End If
+        If IsNumeric(varBuffer(3, i)) Then
+            varQtaKgConsegna = varQtaKgConsegna + Round(varBuffer(2, i) * varBuffer(3, i))
+            varQtaKGViaggio = varQtaKGViaggio + varQtaKgConsegna
+        End If
+    Next i
+    varQuantit‡PerKM = varQuantit‡PerKM + varQtaKgConsegna * varBuffer(1, i - 1)
+    varQuantit‡PerKMTot = varQtaKGViaggio * varQtaKGViaggio
+    
+    CUReparto = 0
+    CUCarga = 0
+    CUTotale = 0
+    If IsNumeric(PortataVeicolo) And (PortataVeicolo > 0) Then
+        CUCarga = Round((varQtaKGViaggio / PortataVeicolo) * 100, 2)
+    End If
+    If IsNumeric(varQuantit‡PerKMTot) And (varQuantit‡PerKMTot > 0) Then
+        CUReparto = Round((varQuantit‡PerKM / varQuantit‡PerKMTot) * 10, 2)
+    End If
+    CUTotale = Round(CUCarga * CUReparto, 2)
+    ComputeCU = True
+    Exit Function
+ErrHandler:
+    ComputeCU = False
+End Function
+
+Public Function GetExportEsysData(IDAsc As String) As Variant
+    On Error GoTo ErrHandler
+    Dim blnResult As Boolean
+    Dim varBuffer As Variant
+    Dim lngHowMany As Long
+    Dim strIDViaggio As String
+    
+    strIDViaggio = DS.Fields("0").Value
+    blnResult = DS.DA.QueryCommand(SQL_GET_EXVIAGDETAIL, varBuffer, lngHowMany, _
+                                   strIDViaggio)
+    If Not blnResult Then
+        GoTo ErrHandler
+    End If
+    GetExportEsysData = varBuffer
+    Exit Function
+ErrHandler:
+    GetExportEsysData = Empty
+End Function
+
+Public Function PopulateTempTable() As Boolean
+    On Error GoTo ErrHandler
+    Dim varResults As Variant
+    ReDim varidprodotti(0 To 10)
+    Dim j As Integer
+    Dim lngHowMany As Long
+    Dim i As Long
+    Dim strIDViaggio As String
+    Dim strPrevIDViaggio As String
+    Dim strCond As String
+    Dim strSQL As String
+    
+    If Not DS.DA.ExecuteQuery(SQL_CLEAR_TRIP_PRODUCTS) Then
+        GoTo ErrHandler
+    End If
+    
+    strCond = DS.MakeKeyCond
+    strSQL = SQL_SELECT_TRIP_PRODUCTS & " WHERE " & strCond  'MakeKeyCond
+    If (Right$(strSQL, 5) <> " AND ") And (Len(strCond) > 0) Then
+        strSQL = strSQL & " AND "
+    End If
+    strSQL = strSQL & DS.CancelField & " = " & DS.DA.MakeSQL(False, dtBit)
+    
+    If Not DS.DA.QueryData(strSQL, varResults, lngHowMany) Then
+        GoTo ErrHandler
+    End If
+    
+    If lngHowMany = 0 Then
+        GoTo ErrHandler
+    End If
+    
+    For j = 0 To 10
+        varidprodotti(j) = vbNullString
+    Next j
+    j = 1
+    strPrevIDViaggio = varResults(0, 0)
+    For i = 0 To lngHowMany - 1
+        strIDViaggio = varResults(0, i)
+        If strIDViaggio <> strPrevIDViaggio Then
+            varidprodotti(0) = strPrevIDViaggio
+            strPrevIDViaggio = strIDViaggio
+            If Not DS.DA.ExecuteCommand(SQL_INSERT_TRIP_PRODUCTS, varidprodotti(0), _
+                                        varidprodotti(1), varidprodotti(2), _
+                                        varidprodotti(3), varidprodotti(4), _
+                                        varidprodotti(5), varidprodotti(6), _
+                                        varidprodotti(7), varidprodotti(8), _
+                                        varidprodotti(9), varidprodotti(10)) Then
+                GoTo ErrHandler
+            End If
+            For j = 0 To 10
+                varidprodotti(j) = vbNullString
+            Next j
+            j = 1
+        End If
+        varidprodotti(j) = varResults(1, i)
+        j = j + 1
+    Next i
+    If Not DS.DA.ExecuteCommand(SQL_INSERT_TRIP_PRODUCTS, strIDViaggio, _
+                                varidprodotti(1), varidprodotti(2), _
+                                varidprodotti(3), varidprodotti(4), _
+                                varidprodotti(5), varidprodotti(6), _
+                                varidprodotti(7), varidprodotti(8), _
+                                varidprodotti(9), varidprodotti(10)) Then
+        GoTo ErrHandler
+    End If
+    PopulateTempTable = True
+    Exit Function
+ErrHandler:
+    PopulateTempTable = False
+End Function
+
+Public Function ContaProdottiSIF(CodSIF As String) As Integer
+    On Error GoTo ErrHandler
+    Dim varBuffer As Variant
+    Dim blnResult As Boolean
+    
+    blnResult = DS.DA.QueryCommand(SQL_COUNT_SIF, varBuffer, _
+                                   0, CodSIF, DS.Fields("3").Value, _
+                                   DS.Fields("0").Value)
+    If Not blnResult Then
+        GoTo ErrHandler
+    End If
+    ContaProdottiSIF = varBuffer(0, 0)
+    
+    Exit Function
+ErrHandler:
+    ContaProdottiSIF = -1
+End Function
+
+Public Function ContaDestinatari() As Integer
+    On Error GoTo ErrHandler
+    Dim varBuffer As Variant
+    Dim blnResult As Boolean
+    Dim lngHowMany As Long
+    
+    blnResult = DS.DA.QueryCommand(SQL_COUNT_DESTINATARI, varBuffer, lngHowMany, _
+                                   DS.Fields("0").Value)
+    If Not blnResult Then
+        GoTo ErrHandler
+    End If
+    ContaDestinatari = varBuffer(0, 0) 'UBound(varBuffer, 2)
+    
+    Exit Function
+ErrHandler:
+    ContaDestinatari = -1
+End Function
+Public Function ContaConsegne() As Long
+    On Error GoTo ErrHandler
+    Dim varBuffer As Variant
+    Dim blnResult As Boolean
+    Dim lngHowMany As Long
+    
+    blnResult = DS.DA.QueryCommand(SQL_COUNT_CONSEGNE, varBuffer, lngHowMany, _
+                                   DS.Fields("0").Value)
+    If Not blnResult Then
+        GoTo ErrHandler
+    End If
+    ContaConsegne = varBuffer(0, 0)
+    
+    Exit Function
+ErrHandler:
+    ContaConsegne = -1
+End Function
+
+Public Function CheckViaggioCompletato(NumeroViaggio As Variant) As Boolean
+    On Error GoTo ErrHandler
+    Dim varBuffer As Variant
+    Dim blnResult As Boolean
+    Dim lngHowMany As Long
+    
+    blnResult = DS.DA.QueryCommand(SQL_COUNT_CONSEGNE_DA_COMPLETARE, varBuffer, lngHowMany, _
+                                   NumeroViaggio)
+    If Not blnResult Then
+        GoTo ErrHandler
+    End If
+    CheckViaggioCompletato = (varBuffer(0, 0) = 0)
+    
+    Exit Function
+ErrHandler:
+    CheckViaggioCompletato = False
+End Function
+
+Public Function IsUpdatable() As Boolean
+    Dim strAvanzamento As String
+    Dim strNumeroViaggioDef As String
+    Dim blnTrasmAGIP As Boolean
+    
+    ' --- Impedisco il salvataggio del viaggio se
+    ' ---   Viaggio elaborato
+    strNumeroViaggioDef = Trim(DS.Fields("1").Value)
+    blnTrasmAGIP = (DS.Fields("41").Value = "T")
+    strAvanzamento = (DS.Fields("42").Value)
+    
+    IsUpdatable = True
+    
+    If strAvanzamento = "E" Then
+        IsUpdatable = False
+        Exit Function
+    End If
+    
+'    If strNumeroViaggioDef <> vbNullString Then
+'        If (CLng(strNumeroViaggioDef) > 0) And (Not blnTrasmAGIP) Then
+'            IsUpdatable = False
+'            Exit Function
+'        End If
+'    End If
+    ' ---
+End Function
+Public Function Copia() As Boolean
+    On Error GoTo ErrHandler
+    Dim strQ As String
+    Dim strIDTrip As String
+    Dim strIDNewTrip As String
+    Dim i  As Integer
+    
+    Copia = True
+    With DS.Fields
+        strIDTrip = .Item("0").Value
+        If .Item("42").Value <> "E" Then
+            Exit Function
+        End If
+        For i = 1 To .Count
+            If Not .Item(i).ReadOnly Then
+                .Item(i).NewValue = .Item(i).Value
+                .Item(i).Updated = True
+            Else
+                .Item(i).Updated = False
+            End If
+        Next i
+        .Item("1").NewValue = vbNullString
+        .Item("1").Updated = True
+        .Item("24").NewValue = strIDTrip
+        .Item("24").Updated = True
+        .Item("41").NewValue = vbNullString
+        .Item("41").Updated = True
+        .Item("44").NewValue = False
+        .Item("44").Updated = True
+        DS.DA.BeginTransaction
+        If Not Insert Then
+            GoTo ErrHandler
+        End If
+        
+        strIDNewTrip = .Item("0").Value
+        ' --- Copio le consegne
+        strQ = SQL_COPY_CONSEGNE & " SELECT " & DS.DA.MakeSQL(strIDNewTrip, .Item("0").FldType) & ", "
+        strQ = strQ & SQL_FIELDS_CONSEGNE
+        strQ = strQ & "  FROM viagvvc0 "
+        strQ = strQ & " WHERE vvcidvvt = " & DS.DA.MakeSQL(strIDTrip, .Item("0").FldType)
+    
+        If Not DS.DA.ExecuteQuery(strQ) Then
+            GoTo ErrHandler
+        End If
+        ' ---
+        
+        ' --- Copio gli scarichi
+        strQ = SQL_COPY_SCARICHI & " SELECT " & DS.DA.MakeSQL(strIDNewTrip, .Item("0").FldType) & ", "
+        strQ = strQ & SQL_FIELDS_SCARICHI
+        strQ = strQ & "  FROM viagvvp0 "
+        strQ = strQ & " WHERE vvpidvvt = " & DS.DA.MakeSQL(strIDTrip, .Item("0").FldType)
+    
+        If Not DS.DA.ExecuteQuery(strQ) Then
+            GoTo ErrHandler
+        End If
+        ' ---
+    
+    End With
+    DS.DA.EndTrans 0
+    Exit Function
+ErrHandler:
+    DS.DA.EndTrans 1
+    Copia = False
+End Function
+
+Public Function SetFlagTrasmissione(NewValue As String) As Boolean
+    On Error GoTo ErrHandler
+    
+    Dim strIDViaggio As String
+    Dim blnResult As Boolean
+    Dim blnConcurErr As Boolean
+    
+    SetFlagTrasmissione = True
+    With DS.Fields
+        strIDViaggio = .Item("0").FindValue
+        .Item("41").NewValue = NewValue
+        .Item("41").Updated = True
+    End With
+    blnResult = DS.BeginSave(SQL_UPDATE, SQL_GET_TS, blnConcurErr)
+    If blnResult Then
+        DS.DA.EndTrans 0
+    Else
+        DS.DA.EndTrans 1
+    End If
+    Exit Function
+ErrHandler:
+    DS.DA.EndTrans 1
+    SetFlagTrasmissione = False
+End Function
+
+Public Function SetFlagTrasmissioneESys(NewValue As String) As Boolean
+    On Error GoTo ErrHandler
+    
+    Dim strIDViaggio As String
+    Dim blnResult As Boolean
+    Dim blnConcurErr As Boolean
+    
+    With DS.Fields
+        strIDViaggio = .Item("0").FindValue
+        .Item("40").NewValue = NewValue
+        .Item("40").Updated = True
+    End With
+    blnResult = DS.BeginSave(SQL_UPDATE, SQL_GET_TS, blnConcurErr)
+    If blnResult Then
+        DS.DA.EndTrans 0
+    Else
+        GoTo ErrHandler
+    End If
+    SetFlagTrasmissioneESys = True
+    Exit Function
+ErrHandler:
+    DS.DA.EndTrans 1
+    SetFlagTrasmissioneESys = False
+End Function
+
+Public Function SetStato(NewValue As String) As Boolean
+    On Error GoTo ErrHandler
+    
+    Dim strIDViaggio As String
+    Dim strCounter As String
+    Dim strQ As String
+    Dim blnConcurErr As Boolean
+    Dim blnUpdateCounter As Boolean
+    Dim blnResult As Boolean
+    Dim blnConcurError As Boolean
+    Dim varBuffer As Variant
+    Dim varQta As Variant
+    Dim lngHowMany As Long
+    Dim i As Integer
+    Dim j As Integer
+   
+    SetStato = True
+    With DS.Fields
+        strIDViaggio = .Item("0").FindValue
+        Select Case NewValue
+            Case "P"
+                If DS.Fields("42").Value <> "D" Then
+                    Exit Function
+                End If
+                ' Forziamo la trasmissione ad Eurosystem
+                SetFlagTrasmissioneESys "N"
+                .ResetFields
+                DS.Fields("1").NewValue = vbNullString
+                DS.Fields("1").Updated = True
+            Case "D"
+                If DS.Fields("42").Value <> "P" Then
+                    Exit Function
+                End If
+                strCounter = DS.DA.GetCounter("anaganu0", "anuprogr", "anuidanu", "003", 0)
+                If strCounter = CStr(-1) Then
+                    GoTo ErrHandler
+                End If
+                .ResetFields
+                DS.Fields("1").NewValue = strCounter
+                DS.Fields("1").Updated = True
+'                blnUpdateCounter = True
+            Case "E"
+                #If VersionID = 1 Then
+                    If DS.Fields("42").Value <> "C" Then
+                        Exit Function
+                    End If
+                #Else
+                    If DS.Fields("42").Value <> "D" Then
+                        Exit Function
+                    End If
+                #End If
+                .ResetFields
+            Case "C"
+                #If VersionID = 1 Then
+                    If DS.Fields("42").Value <> "D" Then
+                        Exit Function
+                    End If
+                    ' Forziamo la trasmissione ad Eurosystem
+                    SetFlagTrasmissioneESys "N"
+                    .ResetFields
+                #Else
+                    GoTo ErrHandler
+                #End If
+            Case Else
+                GoTo ErrHandler
+        End Select
+        .Item("0").Value = strIDViaggio
+        .Item("0").FindValue = strIDViaggio
+        .Item("42").NewValue = NewValue
+        .Item("42").Updated = True
+    End With
+    
+    blnResult = BeginSave(blnConcurErr)
+    
+    If blnResult Then
+        #If VersionID = 1 Then
+        
+            Dim VCA As CViaggioCarico
+            
+            Select Case NewValue
+                Case "P"
+                    ' --- Cancello i dati di carico del viaggio
+                    Set VCA = New CViaggioCarico
+                    With VCA
+                        Set .DS.DA = DS.DA
+                        If Not .DeleteLoadData(strIDViaggio) Then
+                            GoTo ErrHandler
+                        End If
+                    End With
+                    Set VCA = Nothing
+                    ' ---
+                Case "D"
+                    ' --- Inserisco i dati di carico del viaggio
+                    Set VCA = New CViaggioCarico
+                    With VCA
+                        Set .DS.DA = DS.DA
+                        If Not .InsertLoadData(strIDViaggio) Then
+                            GoTo ErrHandler
+                        End If
+                    End With
+                    Set VCA = Nothing
+                    ' ---
+            End Select
+        #End If
+        
+        DS.DA.EndTrans 0
+    Else
+        DS.DA.EndTrans 1
+    End If
+    Exit Function
+ErrHandler:
+    DS.DA.EndTrans 1
+    SetStato = False
+End Function
+
+
+
+Public Sub GetTotali()
+    Dim strQ As String
+    Dim varResult As Variant
+    Dim blnOk As Boolean
+    Dim lngHowMany As Long
+    Dim dblTot As Double
+    Dim i As Integer
+    
+    With DS.DA
+        strQ = SQL_GET_TOTALE_QTA & .MakeSQL(DS.Fields("0").Value, DS.Fields("0").FldType)
+        blnOk = .QueryData(strQ, varResult, lngHowMany)
+        If lngHowMany > 0 Then
+            For i = LBound(varResult, 1) To UBound(varResult, 1)
+                If IsNull(varResult(i, 0)) Then
+                    varResult(i, 0) = 0
+                End If
+            Next i
+            mvarTotaliQta = varResult
+        
+        End If
+        
+    End With
+End Sub
+
+Public Sub GetTotaliProdotto()
+    Dim strQ As String
+    Dim varResult As Variant
+    Dim blnOk As Boolean
+    Dim lngHowMany As Long
+    Dim dblTot As Double
+    Dim i As Integer
+    
+    With DS.DA
+        strQ = SQL_GET_TOTALE_QTA_PRODOTTO & .MakeSQL(DS.Fields("0").Value, DS.Fields("0").FldType) & SQL_GET_TOTALE_QTA_PRODOTTO_GROUPBY
+        blnOk = .QueryData(strQ, varResult, lngHowMany)
+        If lngHowMany > 0 Then
+            For i = LBound(varResult, 1) To UBound(varResult, 1)
+                If IsNull(varResult(i, 0)) Then
+                    varResult(i, 0) = 0
+                End If
+            Next i
+            mvarTotaliQta = varResult
+        
+        End If
+        
+    End With
+End Sub
+
+Public Property Get SearchListFields() As Collection
+    Set SearchListFields = mcolListFields
+End Property
+
+Public Function Find() As Boolean
+    Find = DS.Find(Me.SQL_FIND)
+End Function
+
+Public Function GetList(Optional ActiveRecordsOnly As Boolean = False) As Boolean
+    GetList = DS.GetList(SQL_GETLIST, ActiveRecordsOnly)
+End Function
+
+Public Function Insert() As Boolean
+    DS.Fields("42").NewValue = "P"
+    DS.Fields("42").Updated = True
+    DS.Fields("40").NewValue = "N"
+    DS.Fields("40").Updated = True
+    Insert = DS.Insert(Me.SQL_INSERT, "anaganu0", "anuprogr", "anuidanu", "002", 0)
+End Function
+
+
+Public Function BeginSave(ByRef blnConcurErr As Boolean) As Boolean
+    Dim blnSetDateEff As Boolean
+    Dim blnResult As Boolean
+    Dim strDataViaggio As String
+    
+    If Not IsUpdatable Then
+        Exit Function
+    End If
+    
+    ' --- Se modifico i Km calcolati automaticamente
+    ' --- setto il Flag calcolo Km
+    If DS.Fields("25").Updated And DS.Fields("26").Value = "A" Then
+        DS.Fields("26").NewValue = "M"
+        DS.Fields("26").Updated = True
+    End If
+    If DS.Fields("27").Updated And DS.Fields("28").Value = "A" Then
+        DS.Fields("28").NewValue = "M"
+        DS.Fields("28").Updated = True
+    End If
+    ' ---
+    
+    If DS.Fields("6").Updated Then
+        strDataViaggio = DS.Fields("6").NewValue
+        blnSetDateEff = True
+    End If
+    
+    ' Impostiamo il flag di trasmissione a Eurosystem
+    DS.Fields.Item("40").NewValue = "N"
+    DS.Fields.Item("40").Updated = True
+    
+    blnResult = DS.BeginSave(SQL_UPDATE, SQL_GET_TS, blnConcurErr)
+    
+    If blnSetDateEff Then
+        #If VersionID = 1 Then
+        blnResult = DS.DA.ExecuteCommand(SQL_SET_DATE_CONSEGNE, _
+                                         strDataViaggio, _
+                                         DS.Fields("0").Value)
+        #End If
+        blnResult = DS.DA.ExecuteCommand(SQL_SET_DATE_CONSEGNE_EFF, _
+                                         strDataViaggio, _
+                                         strDataViaggio, _
+                                         DS.Fields("0").Value)
+    End If
+    
+    BeginSave = True
+    
+    ' ---
+End Function
+Private Sub Class_Initialize()
+    Dim i As Integer
+    
+    SQL_FIND = "SELECT vvtidvvt, vvtiddef, vvtseqvi, vvtidasc, " & _
+               "       vvtdtinc, vvthrinc, vvtdtinv, vvthrinv, " & _
+               "       vvtdtfiv, vvthrfiv, vvtidazo, vvtbamez, " & _
+               "       vvtbaaut, vvtidatv, vvtidaut, vvtidam1, " & _
+               "       vvtidam2, vvtidve1, vvtidve2, vvtidau1, " & _
+               "       vvtidau2, vvtidaee, vvtidade, vvtidamd, " & _
+               "       vvtidvv1, vvtkmpre, vvtflcap, vvtkmdef, " & _
+               "       vvtflcad, vvttmpvi, vvttmpca, vvtflrid, " & _
+               "       vvtidad1, vvtidee1, vvtidadz, vvtrife1, " & _
+               "       vvtrife2, vvtflst1, vvtflst2, vvtflst3, " & _
+               "       vvtflst4, vvtflst5, vvtflstv, vvtfltiv, " & _
+               "       vvtidcn1, vvtnripa, vvtannul, timestmp " & _
+               " FROM viagvvt0 WHERE "
+    
+    SQL_GETLIST = "SELECT vvtidvvt, vvtidasc FROM viagvvt0 "
+    SQL_UPDATE = "UPDATE viagvvt0 SET "
+    SQL_INSERT = "INSERT INTO viagvvt0 "
+    SQL_DELETE = "DELETE FROM viagvvt0 WHERE vvtidvvt = "
+    SQL_SET_STATO = "UPDATE viagvvt0 SET vvtflstv = "
+'    SQL_SET_DATE_CONSEGNE_EFF = "UPDATE ordioct0 SET octdtcef = ? WHERE octidoct IN " & _
+'                                " (SELECT vvpidoct FROM viagvvp0 WHERE vvpidvvt = ?) "
+    
+    SQL_SET_DATE_CONSEGNE_EFF = " UPDATE (VIAGVVT0 INNER JOIN VIAGVVP0 ON " & _
+                                " VIAGVVT0.VVTIDVVT = VIAGVVP0.VVPIDVVT) INNER JOIN " & _
+                                " ORDIOCT0 ON VIAGVVP0.VVPIDOCT = ORDIOCT0.OCTIDOCT " & _
+                                " SET ORDIOCT0.OCTDTCEF = ?, ORDIOCT0.octdtcpi = ? WHERE (((VIAGVVP0.VVPIDVVT)=?));"
+
+    SQL_SET_DATE_CONSEGNE = " UPDATE VIAGVVC0 " & _
+                            "    SET VVCDTCON = ? " & _
+                            "  WHERE (((VIAGVVC0.VVCIDVVT)=?))"
+    
+    SQL_GET_TS = "SELECT timestmp FROM viagvvt0 WHERE "
+    SQL_GET_SEARCH_LIST = "SELECT vvtidvvt, vvtiddef, vvtseqvi, " & _
+                                 "vvtidasc, vvtdtinv, vvtdtfiv, vvtidaut, " & _
+                                 "vvtidam1, vvtidam2, " & _
+                                 "vvtannul FROM viagvvt0 "
+    SQL_GET_TOTALE_QTA = "SELECT SUM(vvpqtrkg),SUM(vvpqtrlt),SUM(vvpqtrpz),SUM(vvpqtrcn), " & _
+                         "       SUM(vvpqcokg),SUM(vvpqcolt),SUM(vvpqcopz),SUM(vvpqcocn) " & _
+                         "  FROM viagvvc0 INNER JOIN viagvvp0 on vvcidvvt  = vvpidvvt AND vvcidvvc = vvpidvvc WHERE vvcannul = 0 and vvpannul = 0 and vvpidvvt = "
+    SQL_GET_TOTALE_QTA_PRODOTTO = "SELECT vvpidapr, SUM(vvpqtrkg),SUM(vvpqtrlt),SUM(vvpqtrpz),SUM(vvpqtrcn), " & _
+                                  "       SUM(vvpqcokg),SUM(vvpqcolt),SUM(vvpqcopz),SUM(vvpqcocn) " & _
+                                  "  FROM viagvvc0 INNER JOIN viagvvp0 on vvcidvvt  = vvpidvvt AND vvcidvvc = vvpidvvc WHERE vvcannul = 0 and vvpannul = 0 and vvpidvvt = "
+    SQL_GET_TOTALE_QTA_PRODOTTO_GROUPBY = " GROUP BY vvpidapr"
+    SQL_COPY_CONSEGNE = "INSERT INTO VIAGVVC0 (VVCIDVVT, VVCIDVVC, VVCNRSEQ, VVCIDASC, " & _
+                       "VVCIDACL, VVCRASOC, VVCINDIR, VVCLOCAL, VVCPROVI, " & _
+                       "VVCNRCAP, VVCCOFIS, VVCPAIVA, VVCIDADZ, VVCDERAS, " & _
+                       "VVCDEIND, VVCDELOC, VVCDEPRO, VVCDECAP, VVCDECFI, " & _
+                       "VVCDEPIV, VVCKMPAP, VVCFLCPP, VVCKMPAD, VVCFLCPD, " & _
+                       "VVCTEMVG, VVCTEMSC, VVCIDAZO, VVCIDATV, VVCIDVT1, " & _
+                       "VVCIDVC1, VVCRIES1, VVCRIES2, VVCFLST1, VVCFLST2, " & _
+                       "VVCFLST3, VVCFLST4, VVCIDOCT, VVCANNUL) "
+    SQL_FIELDS_CONSEGNE = " VVCIDVVC, VVCNRSEQ, VVCIDASC, VVCIDACL, VVCRASOC, " & _
+                       " VVCINDIR, VVCLOCAL, VVCPROVI, VVCNRCAP, VVCCOFIS, VVCPAIVA, " & _
+                       " VVCIDADZ, VVCDERAS, VVCDEIND, VVCDELOC, VVCDEPRO, " & _
+                       " VVCDECAP, VVCDECFI, VVCDEPIV, VVCKMPAP, VVCFLCPP, " & _
+                       " VVCKMPAD, VVCFLCPD, VVCTEMVG, VVCTEMSC, VVCIDAZO, " & _
+                       " VVCIDATV, VVCIDVVT, VVCIDVVC, VVCRIES1, VVCRIES2, VVCFLST1, " & _
+                       " VVCFLST2 , VVCFLST3, VVCFLST4, VVCIDOCT, VVCANNUL "
+    SQL_COPY_SCARICHI = "INSERT INTO VIAGVVP0 (VVPIDVVT, VVPIDVVC, VVPIDVVP, VVPIDAPR, VVPIDAIM, " & _
+                       " VVPIDAPD, VVPQTRKG, VVPQTRLT, VVPQTRPZ, VVPQTRCN, " & _
+                       " VVPQCOKG, VVPQCOLT, VVPQCOPZ, VVPQCOCN, VVPPRINC, " & _
+                       " VVPPRFIC, VVPIDVT1, VVPIDVC1, VVPIDVP1, VVPRIFE1, VVPRIFE2, " & _
+                       " VVPIDAIV, VVPIDAMP, VVPPREZZ, VVPSCPER, VVPSCVAL, " & _
+                       " VVPFLTIR, VVPFLST1, VVPFLST2, VVPFLST3, VVPFLST4, " & _
+                       " VVPIDOCT, VVPIDOCR, VVPANNUL)"
+    SQL_FIELDS_SCARICHI = " VVPIDVVC, VVPIDVVP, VVPIDAPR, VVPIDAIM, VVPIDAPD, " & _
+                   " VVPQTRKG, VVPQTRLT, VVPQTRPZ, VVPQTRCN, VVPQCOKG, " & _
+                   " VVPQCOLT, VVPQCOPZ, VVPQCOCN, VVPPRINC, VVPPRFIC, " & _
+                   " VVPIDVVT, VVPIDVVC, VVPIDVVP, VVPRIFE1, VVPRIFE2, VVPIDAIV, " & _
+                   " VVPIDAMP, VVPPREZZ, VVPSCPER, VVPSCVAL, VVPFLTIR, " & _
+                   " VVPFLST1, VVPFLST2, VVPFLST3, VVPFLST4, VVPIDOCT, VVPIDOCR, " & _
+                   " VVPANNUL "
+    
+    SQL_GET_QTA_SCARICHI = "SELECT vvpqcokg, vvpqcolt, vvpqcopz, vvpqcocn, " & _
+                           "       vvpidoct, vvpidocr FROM viagvvp0 WHERE vvpidvvt = "
+    SQL_COUNT_SIF = "SELECT Count(MULTSPD0.SPDCODSO) AS C " & _
+                    " FROM VIAGVVP0 LEFT JOIN MULTSPD0 ON VIAGVVP0.VVPIDAPD = MULTSPD0.SPDIDAPD " & _
+                    " WHERE (((MULTSPD0.SPDCODSO)=?) AND ((MULTSPD0.SPDIDASC)=?) " & _
+                    " AND ((VIAGVVP0.VVPIDVVT)=?) AND ((VIAGVVP0.VVPANNUL)=0))"
+    SQL_COUNT_DESTINATARI = "SELECT COUNT(*) " & _
+                            "  FROM VIAGVVC0 INNER JOIN VIAGVVP0 ON VVCIDVVT = VVPIDVVT AND VVCIDVVC = VVPIDVVC " & _
+                            " WHERE VVCIDVVT = ? AND VVCANNUL = 0 AND VVPANNUL = 0"
+    SQL_COUNT_CONSEGNE = "SELECT COUNT(*) " & _
+                            "  FROM VIAGVVC0 " & _
+                            " WHERE VVCIDVVT = ? AND VVCANNUL = 0 "
+    SQL_SELECT_TRIP_PRODUCTS = "SELECT DISTINCT VVPIDVVT, VVPIDAPR " & _
+                                  "  FROM VIAGVVT0 INNER JOIN (VIAGVVC0 INNER JOIN VIAGVVP0 " & _
+                                  "       ON VIAGVVC0.VVCIDVVT = VIAGVVP0.VVPIDVVT AND VIAGVVC0.VVCIDVVC = VIAGVVP0.VVPIDVVC) " & _
+                                  "       ON VIAGVVT0.VVTIDVVT = VIAGVVC0.VVCIDVVT "
+    SQL_INSERT_TRIP_PRODUCTS = "INSERT INTO VIAGTMP0 VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    SQL_CLEAR_TRIP_PRODUCTS = "DELETE FROM VIAGTMP0 "
+    SQL_GETLIST_COMPUTE_CU_REPARTO = "SELECT VVCIDVVC, VVCKMRAG, VVPQCOLT, APRDECON, " & _
+                                     "       VVTKMDEF " & _
+                                     "  FROM VIAGVVP0 INNER JOIN VIAGVVC0 ON VVPIDVVT = VVCIDVVT AND VVPIDVVC = VVCIDVVC INNER JOIN " & _
+                                     "       VIAGVVT0 ON VVCIDVVT = VVTIDVVT INNER JOIN ANAGAPR0 ON VVPIDAPR = APRIDAPR " & _
+                                     " WHERE (VVCANNUL = 0) And (VVPANNUL = 0) And (VVPIDVVT = ?) " & _
+                                     " ORDER BY VVCIDVVC "
+    
+    ' [28-04-05 (PM)] Nuovi statement per interfacciamento KNOSOS
+    SQL_KNOSOS_VIAGGIO_INSERT = "INSERT INTO VIAJES " & _
+                        "(IDVEH, IDVIAJE, NUMVIAJE, FECHA, ESTA)" & _
+                        "VALUES (?, ?, ?, GETDATE(), ?)"
+    
+    SQL_KNOSOS_CARICO_INSERT = "INSERT INTO VIAJESOPE " & _
+                        "(IDVEH, IDVIAJE, NUMVIAJE, IDDESC, FECHA, CODPROD, TOPE, " & _
+                        "ESTADO, DEPOSITO, FECHA_PREVISTA)" & _
+                        "VALUES (?, ?, ?, ?, GETDATE(), ?, ?, ?, ?, ?)"
+
+
+    SQL_KNOSOS_SCARICO_INSERT = "INSERT INTO VIAJESOPE " & _
+                        "(IDVEH, IDVIAJE, NUMVIAJE, IDDESC, FECHA, CODPROD, TOPE, " & _
+                        "ESTADO, DESTINO, POBLACION, CALLE_NUM, TELEFONO, HSOLICITADO, " & _
+                        "HAPERTURA, HPREVLLEG, PRODUCTO, LITROS, COD_ORDEN, NOTAS1, " & _
+                        "NOTAS2) " & _
+                        "VALUES (?, ?, ?, ?, GETDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    
+    SQL_GET_LIST_KNOSOS_CONSEGNE_RESOIL = "SELECT VIAGVVP0.VVPIDAPR, VIAGVVC0.VVCDERAS, VIAGVVC0.VVCDELOC, VIAGVVC0.VVCDEIND, " & _
+                            " ANAGADZ0.ADZNRTEL, VIAGVVC0.VVCTEMVG, VIAGVVP0.VVPQTRLT, " & _
+                            " VIAGVVC0.VVCIDOCT, VIAGVVC0.VVCNOTE1, VIAGVVC0.VVCNOTEE" & _
+                            " FROM VIAGVVC0 INNER JOIN ANAGADZ0 ON VIAGVVC0.VVCIDADZ = ANAGADZ0.ADZIDADZ" & _
+                            " INNER JOIN VIAGVVP0 ON VIAGVVC0.VVCIDVVT = VIAGVVP0.VVPIDVVT " & _
+                            " AND VIAGVVC0.VVCIDVVC = VIAGVVP0.VVPIDVVC" & _
+                            " WHERE VIAGVVC0.VVCIDVVT = ?"
+    
+    mvarFieldsIndexes = Array("0", "1", "2", "3", "6", "8", "14", _
+                              "15", "16", "44")
+    Set mcolListFields = New Collection
+    For i = 0 To UBound(mvarFieldsIndexes)
+        mcolListFields.Add mvarFieldsIndexes(i)
+    Next i
+    Set DS = New CDataStruct
+    
+    With DS.Fields
+        .Add "Numero Viaggio", "viagvvt0.vvtidvvt", 0, True, 7, "0"
+        .Add "Numero Viaggio definitivo", "viagvvt0.vvtiddef", 0, , 7, "1", , True
+        .Add "Sequenza Viaggio", "viagvvt0.vvtseqvi", 0, True, 3, "2"
+        .Add "Societ‡", "viagvvt0.vvtidasc", 0, True, 3, "3"
+        With .Item("3")
+            .ForeignTableEntity = "ASC"
+            .ForeignTable = "anagasc0"
+            .ForeignTableFld = "ascidasc"
+            .ForeignTableDescField = "ascrasoc"
+            .ForeignTableDeleteFld = "ascannul"
+        End With
+        .Add "Data inizio carico", "viagvvt0.vvtdtinc", 2, False, 10, "4"
+        .Add "Ora inizio carico", "viagvvt0.vvthrinc", 4, False, 5, "5"
+        .Add "Data inizio viaggio", "viagvvt0.vvtdtinv", 2, False, 10, "6"
+        .Add "Ora inizio viaggio", "viagvvt0.vvthrinv", 4, False, 5, "7"
+        .Add "Data fine viaggio", "viagvvt0.vvtdtfiv", 2, False, 10, "8"
+        .Add "Ora fine viaggio", "viagvvt0.vvthrfiv", 4, False, 5, "9"
+        .Add "Zona", "viagvvt0.vvtidazo", 0, False, 3, "10"
+        With .Item("10")
+            .ForeignTableEntity = "AZO"
+            .ForeignTable = "anagazo0"
+            .ForeignTableFld = "azoidazo"
+            .ForeignTableDescField = "azodescr"
+            .ForeignTableDeleteFld = "azoannul"
+        End With
+        .Add "Badge Automezzo", "viagvvt0.vvtbamez", 0, , 5, "11"
+        .Add "Badge Autista", "viagvvt0.vvtbaaut", 0, , 5, "12"
+        .Add "Tipo Vendita", "viagvvt0.vvtidatv", 0, False, 3, "13"
+        With .Item("13")
+            .ForeignTableEntity = "ATV"
+            .ForeignTable = "anagatv0"
+            .ForeignTableFld = "atvidatv"
+            .ForeignTableDescField = "atvdescr"
+            .ForeignTableDeleteFld = "atvannul"
+        End With
+        .Add "Unit‡ di Trasporto", "viagvvt0.vvtidaut", 0, True, 3, "14"
+        With .Item("14")
+            .ForeignTableEntity = "AUT"
+            .ForeignTable = "anagaut0"
+            .ForeignTableFld = "autidaut"
+            .ForeignTableDescField = "autdescr"
+            .ForeignTableDeleteFld = "autannul"
+        End With
+        .Add "Motrice", "viagvvt0.vvtidam1", 0, False, 10, "15"
+        With .Item("15")
+            .ForeignTableEntity = "AAM"
+            .ForeignTable = "anagaam0"
+            .ForeignTableFld = "aamidaam"
+            .ForeignTableDescField = "aamdescr"
+            .ForeignTableDeleteFld = "aamannul"
+        End With
+        .Add "Rimorchio", "viagvvt0.vvtidam2", 0, False, 10, "16"
+        With .Item("16")
+            .ForeignTableEntity = "AAM"
+            .ForeignTable = "anagaam0"
+            .ForeignTableFld = "aamidaam"
+            .ForeignTableDescField = "aamdescr"
+            .ForeignTableDeleteFld = "aamannul"
+        End With
+        .Add "Vettore", "viagvvt0.vvtidve1", 0, False, 3, "17"
+        With .Item("17")
+            .ForeignTableEntity = "AVE"
+            .ForeignTable = "anagave0"
+            .ForeignTableFld = "aveidave"
+            .ForeignTableDescField = "averasoc"
+            .ForeignTableDeleteFld = "aveannul"
+        End With
+        .Add "Vettore Trasportatore", "viagvvt0.vvtidve2", 0, False, 3, "18"
+        With .Item("18")
+            .ForeignTableEntity = "AVE"
+            .ForeignTable = "anagave0"
+            .ForeignTableFld = "aveidave"
+            .ForeignTableDescField = "averasoc"
+            .ForeignTableDeleteFld = "aveannul"
+        End With
+        .Add "Autista 1", "viagvvt0.vvtidau1", 0, False, 3, "19"
+        With .Item("19")
+            .ForeignTableEntity = "AAU"
+            .ForeignTable = "anagaau0"
+            .ForeignTableFld = "aauidaau"
+            .ForeignTableDescField = "aaunomea"
+            .ForeignTableDeleteFld = "aauannul"
+        End With
+        .Add "Autista 2", "viagvvt0.vvtidau2", 0, False, 3, "20"
+        With .Item("20")
+            .ForeignTableEntity = "AAU"
+            .ForeignTable = "anagaau0"
+            .ForeignTableFld = "aauidaau"
+            .ForeignTableDescField = "aaunomea"
+            .ForeignTableDeleteFld = "aauannul"
+        End With
+        .Add "Ente Emittente", "viagvvt0.vvtidaee", 0, True, 3, "21"
+        With .Item("21")
+            .ForeignTableEntity = "AEE"
+            .ForeignTable = "anagaee0"
+            .ForeignTableFld = "aeeidaee"
+            .ForeignTableDescField = "aeedescr"
+            .ForeignTableDeleteFld = "aeeannul"
+        End With
+        .Add "Deposito", "viagvvt0.vvtidade", 0, True, 3, "22"
+        With .Item("22")
+            .ForeignTableEntity = "ADE"
+            .ForeignTable = "anagade0"
+            .ForeignTableFld = "adeidade"
+            .ForeignTableDescField = "adedescr"
+            .ForeignTableDeleteFld = "adeannul"
+        End With
+        .Add "Magazzino di deposito", "viagvvt0.vvtidamd", 0, True, 3, "23"
+        With .Item("23")
+            .ForeignTableEntity = "AMD"
+            .ForeignTable = "anagamd0"
+            .ForeignTableFld = "amdidamd"
+            .ForeignTableDescField = "amddescr"
+            .ForeignTableDeleteFld = "amdannul"
+        End With
+        .Add "Viaggio di Riferimento", "viagvvt0.vvtidvv1", 0, False, 7, "24", , True
+        .Add "Km previsti", "viagvvt0.vvtkmpre", 1, False, 6, "25"
+        .Add "Flag calcolo km previsti", "viagvvt0.vvtflcap", 0, True, 1, "26"
+        .Add "Km definitivi", "viagvvt0.vvtkmdef", 1, False, 6, "27"
+        .Add "Flag calcolo km definitivi", "viagvvt0.vvtflcad", 0, True, 1, "28"
+        .Add "Tempo viaggio", "viagvvt0.vvttmpvi", 1, False, 6, "29"
+        .Add "Tempo carico", "viagvvt0.vvttmpca", 1, False, 6, "30"
+        .Add "Rientro/Dirottamento", "viagvvt0.vvtflrid", 0, False, 1, "31"
+        .Add "Deposito fine viaggio", "viagvvt0.vvtidad1", 0, False, 3, "32"
+        With .Item("32")
+            .ForeignTableEntity = "ADE"
+            .ForeignTable = "anagade0"
+            .ForeignTableFld = "adeidade"
+            .ForeignTableDescField = "adedescr"
+            .ForeignTableDeleteFld = "adeannul"
+        End With
+        .Add "Ente Emittente fine viaggio", "viagvvt0.vvtidee1", 0, False, 3, "33"
+        With .Item("33")
+            .ForeignTableEntity = "AEE"
+            .ForeignTable = "anagaee0"
+            .ForeignTableFld = "aeeidaee"
+            .ForeignTableDescField = "aeedescr"
+            .ForeignTableDeleteFld = "aeeannul"
+        End With
+        .Add "Destinazione fine viaggio", "viagvvt0.vvtidadz", 0, False, 10, "34"
+        With .Item("34")
+            .ForeignTableEntity = "ADZ"
+            .ForeignTable = "anagadz0"
+            .ForeignTableFld = "adzidadz"
+            .ForeignTableDescField = "adzrasoc"
+            .ForeignTableDeleteFld = "adzannul"
+        End With
+        .Add "Rif. Esterno 1", "viagvvt0.vvtrife1", 0, False, 25, "35"
+        .Add "Rif. Esterno 2", "viagvvt0.vvtrife2", 0, False, 25, "36"
+        .Add "Flag stato 1", "viagvvt0.vvtflst1", 0, False, 2, "37"
+        .Add "Flag stato 2", "viagvvt0.vvtflst2", 0, False, 2, "38"
+        
+        ' *** Flag carico in deposito effettuato
+        .Add "Flag stato 3", "viagvvt0.vvtflst3", 0, False, 2, "39"
+        ' ***
+        ' *** Flag trasmissione ad Eurosystem
+        .Add "Flag stato 4", "viagvvt0.vvtflst4", 0, False, 2, "40"
+        ' ***
+        .Add "Flag stato 5", "viagvvt0.vvtflst5", 0, False, 2, "41", , True
+        .Add "Stato Viaggio", "viagvvt0.vvtflstv", 0, False, 1, "42"
+        .Add "Tipo Viaggio", "viagvvt0.vvtfltiv", 0, True, 1, "43"
+        .Add "Contratto", "viagvvt0.vvtidcn1", 0, False, 3, "45"
+        With .Item("45")
+            .ForeignTableEntity = "ACN"
+            .ForeignTable = "anagacn0"
+            .ForeignTableFld = "acnidacn"
+            .ForeignTableDescField = "acndescr"
+            .ForeignTableDeleteFld = "acnannul"
+        End With
+        .Add "Importo pedaggi", "viagvvt0.vvtnripa", 1, False, 13, "46"
+'        .Add "Contratto secondario", "viagvvt0.vvtidcn2", 0, False, 3, "46"
+'        With .Item("46")
+'            .ForeignTableEntity = "ACN"
+'            .ForeignTable = "anagacn0"
+'            .ForeignTableFld = "acnidacn"
+'            .ForeignTableDescField = "acndescr"
+'            .ForeignTableDeleteFld = "acnannul"
+'        End With
+        .Add "Annullato", "viagvvt0.vvtannul", 3, , , "44"
+    End With
+    With DS.KeyFields
+        .Add "0", "1"
+    End With
+    DS.CancelField = "viagvvt0.vvtannul"
+    
+End Sub
+Public Function Delete() As Boolean
+    On Error GoTo ErrHandler
+    
+    Dim strQ As String
+    Dim lngHowMany As Long
+    Dim i As Long
+    Dim strIDViaggio As String
+    Dim VVC As CViaggioConsegna
+    
+    Dim VCA As CViaggioCarico
+    
+    DS.DA.BeginTransaction
+    
+    If Not IsUpdatable() Then
+        GoTo ErrHandler
+    End If
+    
+    Set VVC = New CViaggioConsegna
+    With VVC
+        Set .DS.DA = DS.DA
+        strIDViaggio = DS.Fields("0").Value
+        .DS.Fields("0").FindValue = strIDViaggio
+        If .GetList Then
+            lngHowMany = .DS.HowMany - 1
+            For i = 0 To lngHowMany
+                .DS.Fields("1").FindValue = .DS.List(0, i)
+                .Find
+                .Delete
+            Next i
+        End If
+    End With
+    
+    ' --- Cancello i dati di carico del viaggio
+    Set VCA = New CViaggioCarico
+    With VCA
+        Set .DS.DA = DS.DA
+        If Not .DeleteLoadData(strIDViaggio) Then
+            GoTo ErrHandler
+        End If
+    End With
+    ' ---
+    
+    strQ = SQL_DELETE & DS.DA.MakeSQL(DS.Fields("0").Value, DS.Fields("0").FldType)
+    
+    If Not DS.DA.ExecuteQuery(strQ) Then
+        GoTo ErrHandler
+    End If
+    
+    DS.DA.EndTrans 0
+    
+    Set VVC = Nothing
+    
+    Set VCA = Nothing
+    
+    Delete = True
+    
+    Exit Function
+    
+ErrHandler:
+    DS.DA.EndTrans 1
+    Set VVC = Nothing
+    Set VCA = Nothing
+    Delete = False
+End Function
+
+
+
+Public Property Get TotaliQta(Index As Integer) As Variant
+    If (Index >= LBound(mvarTotaliQta, 1)) And _
+        (Index <= UBound(mvarTotaliQta, 1)) Then
+        TotaliQta = mvarTotaliQta(Index, 0)
+    End If
+End Property
+
+Public Property Get TotaliQtaProdotto() As Variant
+    TotaliQtaProdotto = mvarTotaliQta
+End Property
+
+Private Sub Class_Terminate()
+    Set DS = Nothing
+End Sub
+
+
+Private Sub DS_ClientClear()
+    RaiseEvent ClientClear
+
+End Sub
+
+Private Sub DS_ClientRefresh()
+    RaiseEvent ClientRefresh
+End Sub
+Private Function KNOSOS_InsertCarico(strTargaAutomezzo As String, _
+                                        strKIdViaggio As String, _
+                                        strKNumViaggio As String, _
+                                        strDeposito As String, _
+                                        strDataOraScaricoPrevisto As String)
+On Error GoTo ErrHandler
+    
+    If Not DS.DA.ExecuteCommand(SQL_KNOSOS_CARICO_INSERT, _
+                                TargaAutomezzo, _
+                                KIdViaggio, _
+                                KNumViaggio, _
+                                KNOSOS_OPEVIAGGIO_IDSCARICO_CARICO, _
+                                KNOSOS_OPEVIAGGIO_CODPROD_CARICO, _
+                                KNOSOS_OPEVIAGGIO_TIPO_CARICO, _
+                                KNOSOS_OPEVIAGGIO_STATO_RICHIESTA_CREAZIONE, _
+                                Deposito, DataOraScaricoPrevisto) Then
+        GoTo ErrHandler
+    End If
+    
+    KNOSOS_InsertCarico = True
+    Exit Function
+    
+ErrHandler:
+    KNOSOS_InsertCarico = False
+End Function
+
+Private Function KNOSOS_InsertScarico(TargaAutomezzo As Variant, _
+                                        KIdViaggio As Variant, _
+                                        KNumViaggio As Variant, _
+                                        IDScarico As Long, _
+                                        CodProdotto As Variant, _
+                                        NomeDestinatario As Variant, _
+                                        Localita As Variant, _
+                                        Indirizzo As Variant, _
+                                        Telefono As Variant, _
+                                        OraScarico As Variant, _
+                                        OrarioApertura As Variant, _
+                                        OraPrevistaArrivo As Variant, _
+                                        DescrizioneProdotto As Variant, _
+                                        Litri As Variant, _
+                                        CodiceOrdine As Variant, _
+                                        Note1 As Variant, _
+                                        Note2 As Variant)
+On Error GoTo ErrHandler
+    
+    If Not DS.DA.ExecuteCommand(SQL_KNOSOS_SCARICO_INSERT, _
+                                TargaAutomezzo, _
+                                KIdViaggio, _
+                                KNumViaggio, _
+                                IDScarico, _
+                                CodProdotto, _
+                                KNOSOS_OPEVIAGGIO_TIPO_SCARICO, _
+                                KNOSOS_OPEVIAGGIO_STATO_RICHIESTA_CREAZIONE, _
+                                NomeDestinatario, _
+                                Localita, _
+                                Indirizzo, _
+                                Telefono, _
+                                OraScarico, _
+                                OrarioApertura, _
+                                OraPrevistaArrivo, _
+                                DescrizioneProdotto, _
+                                Litri, _
+                                CodiceOrdine, _
+                                Note1, _
+                                Note2) Then
+        GoTo ErrHandler
+    End If
+    
+    KNOSOS_InsertScarico = True
+    Exit Function
+    
+ErrHandler:
+    KNOSOS_InsertScarico = False
+End Function
+Public Function Insert_Sat() As Boolean
+
+    Dim AAM As CAutomezzo
+    Dim ADE As CDeposito
+
+    Dim strKIdViaggio As String
+    Dim strKNumViaggio As String
+    Dim lngKIdScarico As Long
+
+    Dim strIDAutomezzo As String
+    Dim strIDDeposito As String
+    Dim varBuffer As Variant
+    Dim lngHowMany As Long
+    Dim i As Long
+
+    Dim blnSatellitareInstallato As Boolean
+    Dim strTargaAutomezzo As String
+    Dim strDataOraCarico As String
+    Dim strDeposito As String
+    
+    ' Check stato = Definitivo
+    ' TODO
+
+    ' ------------------------------------------------------------------------
+    ' Carica i dati dell'automezzo
+    ' ------------------------------------------------------------------------
+    ' Ricerca l'automezzo e carica i dati
+    Set AAM = New CAutomezzo
+    With AAM
+        Set .DS.DA = DS.DA
+
+        strIDAutomezzo = DS.Fields("15").Value
+        .DS.Fields("0").FindValue = strIDAutomezzo
+
+        If .Find = True And .DS.HowMany > 0 Then
+            
+            ' Imposta SatellitareInstallato a True o False
+            blnSatellitareInstallato = .DS.Fields("34").Value
+            strTargaAutomezzo = .DS.Fields("0").Value
+        Else
+            GoTo ErrHandler
+        End If
+    End With
+
+    ' Se il satellitare non e' installato esce
+    If blnSatellitareInstallato = False Then
+        Insert_Sat = True
+        Exit Function
+    End If
+    
+    ' ------------------------------------------------------------------------
+    ' Carica i dati del deposito
+    ' ------------------------------------------------------------------------
+    ' Ricerca il deposito e carica i dati
+    Set ADE = New CDeposito
+    With ADE
+        Set .DS.DA = DS.DA
+
+        strIDDeposito = DS.Fields("22").Value
+        .DS.Fields("0").FindValue = strIDDeposito
+
+        If .Find = True Then
+            strDeposito = .DS.Fields("1").Value
+        Else
+            GoTo ErrHandler
+        End If
+    End With
+    
+    ' Inizia transazione
+    DS.DA.BeginTransaction
+
+    ' ------------------------------------------------------------------------
+    ' Inserimento del viaggio
+    ' ------------------------------------------------------------------------
+    strKIdViaggio = DS.Fields("2").Value       ' Sequenza
+    strKNumViaggio = DS.DA.GetCounter("anaganu0", "anuprogr", "anuidanu", "900", 0)
+    strDataOraCarico = Format(DS.Fields("4").Value, "dd/mm/yy") & Format(DS.Fields("5").Value, "hh:mm")
+
+    If Not DS.DA.ExecuteCommand(SQL_KNOSOS_VIAGGIO_INSERT, _
+                                strTargaAutomezzo, _
+                                strKIdViaggio, _
+                                strKNumViaggio, _
+                                KNOSOS_VIAGGIO_STATO_PENDENTE) Then
+        GoTo ErrHandler
+    End If
+
+    ' TODO: Update strKNumViaggio sul viaggio resoil
+    
+    ' ------------------------------------------------------------------------
+    ' Inserimento del carico
+    ' ------------------------------------------------------------------------
+    If Not DS.DA.ExecuteCommand(SQL_KNOSOS_CARICO_INSERT, _
+                                strTargaAutomezzo, _
+                                strKIdViaggio, _
+                                strKNumViaggio, _
+                                KNOSOS_OPEVIAGGIO_IDSCARICO_CARICO, _
+                                KNOSOS_OPEVIAGGIO_CODPROD_CARICO, _
+                                KNOSOS_OPEVIAGGIO_TIPO_CARICO, _
+                                KNOSOS_OPEVIAGGIO_STATO_RICHIESTA_CREAZIONE, _
+                                strDeposito, strDataOraCarico) Then
+        GoTo ErrHandler
+    End If
+    
+    ' ------------------------------------------------------------------------
+    ' Inserimento degli scarichi dei prodotti
+    ' ------------------------------------------------------------------------
+    If Not DS.DA.QueryCommand(SQL_GET_LIST_KNOSOS_CONSEGNE_RESOIL, varBuffer, lngHowMany, DS.Fields("0")) Then
+        GoTo ErrHandler
+    End If
+
+    For i = 0 To UBound(varBuffer, 2)
+        
+'       VIAGVVP0.VVPIDAPR, VIAGVVC0.VVCDERAS, VIAGVVC0.VVCDELOC,
+'       VIAGVVC0.VVCDEIND, ANAGADZ0.ADZNRTEL, VIAGVVC0.VVCTEMVG,
+'       VIAGVVP0.VVPQTRLT, VIAGVVC0.VVCIDOCT, VIAGVVC0.VVCNOTE1,
+'       VIAGVVC0.VVCNOTEE
+        
+        lngKIdScarico = KNOSOS_GetNextIDScarico(strKIdViaggio)
+        
+        ' TODO: Aspettare informazioni sui campi
+        If KNOSOS_InsertScarico(strTargaAutomezzo, _
+                                strKIdViaggio, _
+                                lngKIdScarico, _
+                                strKNumViaggio, _
+                                varBuffer(0, i), _
+                                varBuffer(1, i), _
+                                varBuffer(2, i), _
+                                varBuffer(3, i), _
+                                varBuffer(4, i), _
+                                "", _
+                                "", _
+                                Format(varBuffer(5, i), "dd/mm/yy hh:mm"), _
+                                "", _
+                                Str(varBuffer(6, i)), _
+                                Int(varBuffer(7, i)), _
+                                varBuffer(8, i), _
+                                varBuffer(9, i)) = False Then
+            GoTo ErrHandler
+        End If
+    
+        ' TODO: Update strKNumViaggio sul viaggio resoil
+
+    Next i
+
+    Set AAM = Nothing
+    Set ADE = Nothing
+    
+    DS.DA.EndTrans etCommit
+
+    Insert_Sat = True
+    Exit Function
+
+ErrHandler:
+    Set AAM = Nothing
+    Set ADE = Nothing
+    
+    Insert_Sat = False
+    DS.DA.EndTrans etRollback
+    
+End Function

@@ -1,0 +1,79 @@
+[Root]
+Most Recent Package=File .dep 1
+
+
+[Package|File .dep 1|Root]
+SubWizProgID=PDWizard.DepPkgSubWiz
+BuildFolder=D:\Work\Svil6\Objects\Oil2Blg0\001 Logimovil
+
+[Package|File .dep 1|Configure DAO ISAMs]
+Applicable=No
+
+[Package|File .dep 1|Configure DAO ODBC]
+JetWorkspace=
+ODBCDirect=
+
+[Package|File .dep 1|Files Found]
+
+[Package|File .dep 1|Files Released]
+msadox.dll=
+msjro.dll=
+
+[Package|File .dep 1|Missing Dependency Information]
+
+[Package|File .dep 1|Out-of-Date Dependency Information]
+
+[Package|File .dep 1|Files Added]
+
+[Package|File .dep 1|Files Removed]
+
+[Package|File .dep 1|Files In Project]
+D:\Work\Svil6\Objects\Oil2Blg0\001 Logimovil\OIL2BLG0.dll=Yes
+C:\WINNTWRK\system32\MSVBVM60.DLL=Yes
+C:\WINNTWRK\system32\OLEAUT32.DLL=Yes
+C:\WINNTWRK\system32\OLEPRO32.DLL=Yes
+C:\WINNTWRK\system32\ASYCFILT.DLL=Yes
+C:\WINNTWRK\system32\STDOLE2.TLB=Yes
+C:\Programmi\Microsoft Visual Studio\VB98\Wizards\PDWizard\Redist\COMCAT.DLL=Yes
+C:\WINNTWRK\system32\VB6IT.DLL=Yes
+D:\Work\Svil6\Objects\RESLIB01.dll=Yes
+D:\Work\Svil6\Objects\RESLIB02.dll=Yes
+C:\WINNTWRK\system32\COMCTL32.OCX=Yes
+C:\WINNTWRK\system32\CMCTLIT.DLL=Yes
+C:\Programmi\File comuni\System\ado\msado15.dll=Yes
+
+[Package|File .dep 1|Configure Registry Files]
+Applicable=
+
+[Package|File .dep 1|Configure Remote Servers]
+Applicable=
+
+[Package|File .dep 1|Install Locations]
+D:\Work\Svil6\Objects\Oil2Blg0\001 Logimovil\OIL2BLG0.dll=$(AppPath)
+C:\WINNTWRK\system32\MSVBVM60.DLL=$(WinSysPathSysFile)
+C:\WINNTWRK\system32\OLEAUT32.DLL=$(WinSysPathSysFile)
+C:\WINNTWRK\system32\OLEPRO32.DLL=$(WinSysPathSysFile)
+C:\WINNTWRK\system32\ASYCFILT.DLL=$(WinSysPathSysFile)
+C:\WINNTWRK\system32\STDOLE2.TLB=$(WinSysPathSysFile)
+C:\Programmi\Microsoft Visual Studio\VB98\Wizards\PDWizard\Redist\COMCAT.DLL=$(WinSysPathSysFile)
+C:\WINNTWRK\system32\VB6IT.DLL=$(WinSysPath)
+D:\Work\Svil6\Objects\RESLIB01.dll=$(AppPath)
+D:\Work\Svil6\Objects\RESLIB02.dll=$(AppPath)
+C:\WINNTWRK\system32\COMCTL32.OCX=$(WinSysPath)
+C:\WINNTWRK\system32\CMCTLIT.DLL=$(WinSysPath)
+C:\Programmi\File comuni\System\ado\msado15.dll=$(CommonFilesSys)\ADO
+
+[Package|File .dep 1|Configure Shared Files]
+Applicable=
+
+[Package|File .dep 1|DepFile]
+DepCabFile=OIL2BLG0.CAB
+DepCabRun=OIL2BLG0.INF
+
+[Package|File .dep 1|Package]
+PackageFolder=D:\Work\Svil6\Objects\Oil2Blg0\001 Logimovil
+ProjectFolder=D:\Work\Svil6\Projects\001 Logimovil
+ServerSideCab=
+File1=D:\Work\Svil6\Objects\Oil2Blg0\001 Logimovil\OIL2BLG0.DEP
+Handler1=PDWizard.FolderDplySubWiz
+Handler2=PDWizard.WebPostDplySubWiz

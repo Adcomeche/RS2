@@ -1,0 +1,5 @@
+Línea 1523: la clase MSComctlLib.TabStrip del control tspSelect no era una clase de control cargada.
+Línea 1553: la clase MSComctlLib.ImageList del control ImageList1 no era una clase de control cargada.
+Línea 1579: la clase MSComctlLib.TabStrip del control TabStrip1 no era una clase de control cargada.
+Línea 1604: la clase MSComctlLib.StatusBar del control StatusBar1 no era una clase de control cargada.
+Línea 1647: la clase MSComctlLib.ImageList del control ImageList2 no era una clase de control cargada.
